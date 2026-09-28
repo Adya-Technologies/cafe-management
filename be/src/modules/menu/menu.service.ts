@@ -458,6 +458,7 @@ export class MenuService {
                 id: branch.id,
                 name: branch.name,
                 location: branch.location,
+                imageUrl: branch.imageUrl,
             },
             menuItems: menuItems.map(normalizeMenuItem),
         };
