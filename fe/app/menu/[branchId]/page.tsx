@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { menuService } from '@/lib/api/menu-service';
 import { MenuItem, Branch, Order } from '@/lib/types';
 import Spinner from '@/components/ui/Spinner';
@@ -17,7 +17,16 @@ import { isToppingCategoryName } from '@/lib/utils/topping';
 import { formatOrderItemName, isToppingOrderItem } from '@/lib/utils/order-items';
 
 export default function PublicMenuPage() {
+    return (
+        <Suspense fallback={null}>
+            <PublicMenuPageContent />
+        </Suspense>
+    );
+}
+
+function PublicMenuPageContent() {
     const params = useParams();
+    const searchParams = useSearchParams();
     const branchId = params.branchId as string;
 
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -30,8 +39,15 @@ export default function PublicMenuPage() {
     const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
     const [failedItemImageIds, setFailedItemImageIds] = useState<Set<string>>(new Set());
 
-    const { addItem, getItemCount, getItemQuantity, updateQuantity } = useCartStore();
+    const { addItem, getItemCount, getItemQuantity, updateQuantity, setTable, tableLabel } = useCartStore();
     const cartItemCount = getItemCount();
+
+    useEffect(() => {
+        const tableIdParam = searchParams.get('table');
+        if (tableIdParam) {
+            setTable(tableIdParam, searchParams.get('t'));
+        }
+    }, [searchParams, setTable]);
 
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error'; isVisible: boolean }>({
         message: '',
@@ -243,6 +259,11 @@ export default function PublicMenuPage() {
                             <div className="flex-1">
                                 <h2 className="text-xl font-semibold text-black leading-tight">{branch.name}</h2>
                                 <p className="text-xs text-gray-800">{branch.location}</p>
+                                {tableLabel && (
+                                    <span className="mt-1 inline-block rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                                        Table {tableLabel}
+                                    </span>
+                                )}
                             </div>
 
                             <button

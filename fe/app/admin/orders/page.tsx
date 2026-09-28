@@ -404,6 +404,9 @@ export default function AdminOrdersPage() {
                                 >
                                     <td className="px-4 py-4 text-sm font-medium text-[#4e2f27]">
                                         Ord- {order.tokenNumber ? String(order.tokenNumber).padStart(4, '0') : order.id.slice(-4)}
+                                        {order.table && (
+                                            <div className="text-xs font-normal text-[#6f584f]">Table {order.table.label}</div>
+                                        )}
                                     </td>
                                     <td className="px-4 py-4 text-xs text-[#6f584f]">
                                         <div>{format(new Date(order.createdAt), 'MMM d, yyyy')}</div>
@@ -485,6 +488,9 @@ export default function AdminOrdersPage() {
                                 <tr className="bg-transparent">
                                     <td className="px-4 py-4 text-sm font-medium text-[#4e2f27]">
                                         Ord- {selectedOrder.tokenNumber ? String(selectedOrder.tokenNumber).padStart(4, '0') : selectedOrder.id.slice(-4)}
+                                        {selectedOrder.table && (
+                                            <div className="text-xs font-normal text-[#6f584f]">Table {selectedOrder.table.label}</div>
+                                        )}
                                     </td>
                                     <td className="px-4 py-4 text-xs text-[#6f584f]">
                                         <div>{format(new Date(selectedOrder.createdAt), 'MMM d, yyyy')}</div>

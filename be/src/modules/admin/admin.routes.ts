@@ -38,10 +38,25 @@ router.delete('/employees/:id', requireRole('ADMIN', 'MANAGER', 'SUPER_ADMIN'), 
 router.get('/branches', requireRole('ADMIN', 'MANAGER', 'SUPER_ADMIN'), AdminController.listBranches);
 router.get('/branches/:id', requireRole('ADMIN', 'MANAGER', 'SUPER_ADMIN'), AdminController.getBranch);
 
+// Table Management
+router.get(
+    '/branches/:branchId/tables',
+    requireRole('ADMIN', 'MANAGER', 'SUPER_ADMIN'),
+    AdminController.listTables
+);
+
 // Everything below requires admin-only permissions
 router.use(requireRole('ADMIN', 'SUPER_ADMIN'));
 router.post('/branches', AdminController.createBranchValidation, AdminController.createBranch);
 router.put('/branches/:id', AdminController.updateBranch);
 router.delete('/branches/:id', AdminController.deleteBranch);
+
+router.post(
+    '/branches/:branchId/tables',
+    AdminController.createTableValidation,
+    AdminController.createTable
+);
+router.put('/tables/:id', AdminController.updateTable);
+router.delete('/tables/:id', AdminController.deleteTable);
 
 export default router;

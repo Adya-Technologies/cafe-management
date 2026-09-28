@@ -46,6 +46,7 @@ export class OrderService {
             orderType?: 'DINE_IN' | 'TAKEAWAY';
             paymentMethod?: 'CASH_PAYMENT' | 'FONEPAY' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'UPI';
             discountPercentage?: number;
+            tableId?: string;
         },
         tenantId?: string
     ) {
@@ -60,6 +61,17 @@ export class OrderService {
 
         if (tenantId && branch.tenantId !== tenantId) {
             throw new Error('Forbidden: Cross-tenant order creation not allowed');
+        }
+
+        if (data.tableId) {
+            const table = await prisma.table.findFirst({
+                where: { id: data.tableId, branchId: data.branchId, isActive: true },
+                select: { id: true },
+            });
+
+            if (!table) {
+                throw new Error('Table not found for this branch');
+            }
         }
 
         // Validate all menu items exist and calculate total
@@ -123,6 +135,7 @@ export class OrderService {
                 customerName: data.customerName,
                 customerPhone: data.customerPhone,
                 deviceId: data.deviceId,
+                tableId: data.tableId,
                 status: 'PENDING',
                 paymentMethod: data.paymentMethod ?? 'CASH_PAYMENT',
                 orderItems: {
@@ -140,6 +153,7 @@ export class OrderService {
                     },
                 },
                 branch: true,
+                table: true,
             },
         });
 
@@ -162,6 +176,7 @@ export class OrderService {
                     },
                 },
                 branch: true,
+                table: true,
             },
         });
 
@@ -200,6 +215,7 @@ export class OrderService {
                     },
                 },
                 branch: true,
+                table: true,
             },
             orderBy: { createdAt: 'desc' },
         });
@@ -215,6 +231,7 @@ export class OrderService {
             include: {
                 orderItems: { include: { menuItem: true } },
                 branch: true,
+                table: true,
             },
             orderBy: { createdAt: 'desc' },
         });
@@ -274,6 +291,7 @@ export class OrderService {
                     },
                 },
                 branch: true,
+                table: true,
             },
         });
 
@@ -318,6 +336,7 @@ export class OrderService {
             include: {
                 orderItems: { include: { menuItem: true } },
                 branch: true,
+                table: true,
             },
         });
     }
@@ -372,6 +391,7 @@ export class OrderService {
             include: {
                 orderItems: { include: { menuItem: true } },
                 branch: true,
+                table: true,
             },
         });
     }

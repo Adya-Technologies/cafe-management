@@ -58,6 +58,16 @@ export interface Branch {
     updatedAt?: string;
 }
 
+export interface RestaurantTable {
+    id: string;
+    branchId: string;
+    label: string;
+    qrCode?: string;
+    isActive: boolean;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
 export interface CreateBranchData {
     name: string;
     location: string;
@@ -165,6 +175,8 @@ export interface Order {
     branch?: Branch;
     status: OrderStatus;
     tokenNumber?: number;
+    tableId?: string;
+    table?: RestaurantTable;
     orderType?: OrderType;
     paymentMethod?: PaymentMethod;
     customerName?: string;
@@ -187,6 +199,7 @@ export interface CreateOrderData {
     customerName?: string;
     customerPhone?: string;
     deviceId?: string;
+    tableId?: string;
     orderType?: OrderType;
     paymentMethod?: PaymentMethod;
     discountPercentage?: number;

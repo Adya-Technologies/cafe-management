@@ -15,7 +15,7 @@ import { OrderType } from '@/lib/types';
 
 export default function CheckoutPage() {
     const router = useRouter();
-    const { items, getTotal, branchId, clearCart } = useCartStore();
+    const { items, getTotal, branchId, tableId, clearCart } = useCartStore();
     const [isLoading, setIsLoading] = useState(false);
     const [customerName, setCustomerName] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
@@ -64,6 +64,7 @@ export default function CheckoutPage() {
                 customerPhone: customerPhone || undefined,
                 deviceId: getOrCreateDeviceId(),
                 orderType,
+                tableId: orderType === OrderType.DINE_IN ? tableId || undefined : undefined,
                 items: items.map(item => ({
                     menuItemId: item.menuItem.id,
                     quantity: item.quantity,

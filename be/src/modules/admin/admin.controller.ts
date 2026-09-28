@@ -378,6 +378,94 @@ export class AdminController {
         }
     }
 
+    static createTableValidation = [
+        body('label').notEmpty().withMessage('Table label is required'),
+    ];
+
+    static async createTable(req: AuthRequest, res: Response) {
+        try {
+            const errors = validationResult(req);
+            if (!errors.isEmpty()) {
+                return res.status(400).json({ errors: errors.array() });
+            }
+
+            if (!req.user?.tenantId) {
+                return res.status(400).json({ error: 'Tenant context missing' });
+            }
+
+            const { branchId } = req.params;
+            const { label } = req.body;
+
+            const table = await AdminService.createTable({
+                branchId: branchId as string,
+                label,
+                tenantId: req.user.tenantId,
+            });
+
+            res.status(201).json(table);
+        } catch (error) {
+            res.status(400).json({
+                error: error instanceof Error ? error.message : 'Failed to create table',
+            });
+        }
+    }
+
+    static async listTables(req: AuthRequest, res: Response) {
+        try {
+            if (!req.user?.tenantId) {
+                return res.status(400).json({ error: 'Tenant context missing' });
+            }
+
+            const { branchId } = req.params;
+            const tables = await AdminService.listTables(branchId as string, req.user.tenantId);
+
+            res.json(tables);
+        } catch (error) {
+            res.status(400).json({
+                error: error instanceof Error ? error.message : 'Failed to fetch tables',
+            });
+        }
+    }
+
+    static async updateTable(req: AuthRequest, res: Response) {
+        try {
+            if (!req.user?.tenantId) {
+                return res.status(400).json({ error: 'Tenant context missing' });
+            }
+
+            const { id } = req.params;
+            const { label, isActive } = req.body;
+
+            const table = await AdminService.updateTable(id as string, req.user.tenantId, {
+                label,
+                isActive,
+            });
+
+            res.json(table);
+        } catch (error) {
+            res.status(400).json({
+                error: error instanceof Error ? error.message : 'Failed to update table',
+            });
+        }
+    }
+
+    static async deleteTable(req: AuthRequest, res: Response) {
+        try {
+            if (!req.user?.tenantId) {
+                return res.status(400).json({ error: 'Tenant context missing' });
+            }
+
+            const { id } = req.params;
+            const result = await AdminService.deleteTable(id as string, req.user.tenantId);
+
+            res.json(result);
+        } catch (error) {
+            res.status(400).json({
+                error: error instanceof Error ? error.message : 'Failed to delete table',
+            });
+        }
+    }
+
     static async getReportOverview(req: AuthRequest, res: Response) {
         try {
             const { branchId, startDate, endDate } = req.query;

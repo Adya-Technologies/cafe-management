@@ -20,6 +20,7 @@ model Tenant {
   menuItems     MenuItem[]
   orders        Order[]
   subscriptions Subscription[]
+  tables        Table[]
   users         User[]
 }
 
@@ -88,8 +89,27 @@ model Branch {
   categories     Category[]
   menuItems      MenuItem[]
   orders         Order[]
+  tables         Table[]
   users          User[]     @relation("BranchToUser")
 
+  @@index([tenantId])
+}
+
+model Table {
+  id        String   @id @default(uuid())
+  label     String
+  qrCode    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders    Order[]
+
+  @@unique([branchId, label])
+  @@index([branchId])
   @@index([tenantId])
 }
 
@@ -158,6 +178,8 @@ model Order {
   deviceId                   String?
   orderType                  OrderType    @default(DINE_IN)
   paymentMethod              PaymentMethod @default(CASH_PAYMENT)
+  tableId                    String?
+  table                      Table?       @relation(fields: [tableId], references: [id])
   branch                     Branch       @relation(fields: [branchId], references: [id])
   tenant                     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   orderItems                 OrderItem[]
@@ -166,6 +188,7 @@ model Order {
   @@index([tenantId])
   @@index([status])
   @@index([tokenNumber])
+  @@index([tableId])
   @@index([createdAt])
 }
 

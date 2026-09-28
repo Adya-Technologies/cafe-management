@@ -133,6 +133,15 @@ export default function BranchesPage() {
                             </p>
 
                             <div className="mt-4 flex gap-2">
+                                <Link href={`/admin/branches/${branch.id}/tables`} className="flex-1">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="w-full border-[#eadcc7] text-white hover:bg-[#73463a]"
+                                    >
+                                        Tables
+                                    </Button>
+                                </Link>
                                 <Button
                                     size="sm"
                                     variant="outline"

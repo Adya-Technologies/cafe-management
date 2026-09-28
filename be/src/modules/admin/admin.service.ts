@@ -1,6 +1,6 @@
 import prisma from '../../config/database';
 import bcrypt from 'bcryptjs';
-import { generateBranchQR } from '../../utils/qrcode';
+import { generateBranchQR, generateTableQR } from '../../utils/qrcode';
 import { assertBranchEntitlement, assertSeatEntitlement } from '../../utils/entitlements';
 
 const employeeSelect = {
@@ -319,6 +319,90 @@ export class AdminService {
         ]);
 
         return { message: 'Branch and associated staff and menu items deleted successfully' };
+    }
+
+    static async createTable(data: { branchId: string; label: string; tenantId: string }) {
+        const branch = await prisma.branch.findFirst({
+            where: { id: data.branchId, tenantId: data.tenantId, isActive: true },
+            select: { id: true },
+        });
+
+        if (!branch) {
+            throw new Error('Branch not found');
+        }
+
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4000';
+
+        const table = await prisma.table.create({
+            data: {
+                label: data.label,
+                branchId: data.branchId,
+                tenantId: data.tenantId,
+            },
+        });
+
+        const qrCode = await generateTableQR(data.branchId, table.id, table.label, frontendUrl);
+
+        return prisma.table.update({
+            where: { id: table.id },
+            data: { qrCode },
+        });
+    }
+
+    static async listTables(branchId: string, tenantId: string) {
+        const branch = await prisma.branch.findFirst({
+            where: { id: branchId, tenantId, isActive: true },
+            select: { id: true },
+        });
+
+        if (!branch) {
+            throw new Error('Branch not found');
+        }
+
+        return prisma.table.findMany({
+            where: { branchId, tenantId },
+            orderBy: { createdAt: 'asc' },
+        });
+    }
+
+    static async updateTable(
+        id: string,
+        tenantId: string,
+        data: { label?: string; isActive?: boolean }
+    ) {
+        const existing = await prisma.table.findFirst({
+            where: { id, tenantId },
+        });
+
+        if (!existing) {
+            throw new Error('Table not found');
+        }
+
+        let qrCode = existing.qrCode;
+        if (data.label && data.label !== existing.label) {
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4000';
+            qrCode = await generateTableQR(existing.branchId, existing.id, data.label, frontendUrl);
+        }
+
+        return prisma.table.update({
+            where: { id },
+            data: { ...data, qrCode },
+        });
+    }
+
+    static async deleteTable(id: string, tenantId: string) {
+        const existing = await prisma.table.findFirst({
+            where: { id, tenantId },
+            select: { id: true },
+        });
+
+        if (!existing) {
+            throw new Error('Table not found');
+        }
+
+        await prisma.table.delete({ where: { id } });
+
+        return { message: 'Table deleted successfully' };
     }
 
     static async getReportOverview(filters: {

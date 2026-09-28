@@ -187,7 +187,9 @@ export default function OrderDetailModal({ orderId, onClose, onUpdate }: OrderDe
                                 <h3 className="mb-1 text-2xl font-bold text-gray-900">
                                     {order.orderType === OrderType.TAKEAWAY
                                         ? 'Takeaway (no token)'
-                                        : `Token: ${order.tokenNumber ?? 'N/A'}`}
+                                        : order.table
+                                            ? `Table ${order.table.label}`
+                                            : `Token: ${order.tokenNumber ?? 'N/A'}`}
                                 </h3>
                                 <p className="text-sm text-gray-600">
                                     {format(new Date(order.createdAt), 'PPpp')}

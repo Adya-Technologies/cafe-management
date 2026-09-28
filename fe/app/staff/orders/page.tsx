@@ -1403,9 +1403,15 @@ export default function StaffOrdersPage() {
                                 <div className="w-1 h-8 bg-gradient-to-b from-red-700 to-red-600 rounded-full mr-4 shadow-sm"></div>
                                 <div>
                                   <div className="flex items-center space-x-2">
-                                    <span className="text-sm font-semibold text-gray-800" style={{ fontFamily: 'Quicksand, sans-serif' }}>Token no:</span>
+                                    <span className="text-sm font-semibold text-gray-800" style={{ fontFamily: 'Quicksand, sans-serif' }}>
+                                      {order.table ? 'Table:' : 'Token no:'}
+                                    </span>
                                     <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded" style={{ fontFamily: 'Quicksand, sans-serif' }}>
-                                      {order.tokenNumber ? String(order.tokenNumber).padStart(3, '0') : order.id.slice(-3)}
+                                      {order.table
+                                        ? order.table.label
+                                        : order.tokenNumber
+                                          ? String(order.tokenNumber).padStart(3, '0')
+                                          : order.id.slice(-3)}
                                     </span>
                                   </div>
                                   <div className="flex items-center space-x-3 mt-1" style={{ fontFamily: "'Quicksand', sans-serif" }}>
@@ -1634,9 +1640,15 @@ export default function StaffOrdersPage() {
                                   }`}></div>
                                 <div>
                                   <div className="flex items-center space-x-2">
-                                    <span className="text-sm font-semibold text-gray-800" style={{ fontFamily: 'Quicksand, sans-serif' }}>Token no:</span>
+                                    <span className="text-sm font-semibold text-gray-800" style={{ fontFamily: 'Quicksand, sans-serif' }}>
+                                      {order.table ? 'Table:' : 'Token no:'}
+                                    </span>
                                     <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded" style={{ fontFamily: 'Quicksand, sans-serif' }}>
-                                      {order.tokenNumber ? String(order.tokenNumber).padStart(3, '0') : order.id.slice(-3)}
+                                      {order.table
+                                        ? order.table.label
+                                        : order.tokenNumber
+                                          ? String(order.tokenNumber).padStart(3, '0')
+                                          : order.id.slice(-3)}
                                     </span>
                                   </div>
                                   <div className="flex items-center space-x-3 mt-1" style={{ fontFamily: "'Quicksand', sans-serif" }}>

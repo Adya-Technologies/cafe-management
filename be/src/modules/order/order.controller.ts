@@ -24,6 +24,7 @@ export class OrderController {
             .isFloat({ min: 0, max: 100 })
             .withMessage('discountPercentage must be between 0 and 100'),
         body('deviceId').optional().isString().isLength({ min: 6, max: 128 }).withMessage('deviceId must be a string'),
+        body('tableId').optional().isUUID().withMessage('tableId must be a valid ID'),
     ];
 
     static async createOrder(req: Request, res: Response) {
@@ -34,7 +35,7 @@ export class OrderController {
             }
 
             const authReq = req as AuthRequest;
-            const { branchId, items, customerName, customerPhone, deviceId, orderType, paymentMethod, discountPercentage } = req.body;
+            const { branchId, items, customerName, customerPhone, deviceId, orderType, paymentMethod, discountPercentage, tableId } = req.body;
             const requestedDiscount = discountPercentage === undefined ? undefined : Number(discountPercentage);
             const hasDiscount = requestedDiscount !== undefined && requestedDiscount > 0;
 
@@ -62,6 +63,7 @@ export class OrderController {
                 orderType,
                 paymentMethod,
                 discountPercentage: requestedDiscount,
+                tableId,
             }, authReq.user?.tenantId);
 
             res.status(201).json(order);
