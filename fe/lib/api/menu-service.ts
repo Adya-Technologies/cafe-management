@@ -125,6 +125,8 @@ export const menuService = {
                 id: data.branch.id,
                 name: data.branch.name,
                 location: data.branch.location,
+                imageUrl: data.branch.imageUrl,
+                avatar: data.branch.avatar,
                 tokenSystemEnabled: data.branch.tokenSystemEnabled ?? data.branch.hasTokenSystem,
                 hasTokenSystem: data.branch.hasTokenSystem ?? data.branch.tokenSystemEnabled,
                 createdAt: data.branch.createdAt,
