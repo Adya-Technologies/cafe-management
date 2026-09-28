@@ -3,10 +3,12 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { Branch } from '@/lib/types';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Checkbox from '@/components/ui/Checkbox';
+import { resolveImageUrl } from '@/lib/utils/image';
 
 const branchSchema = z.object({
     name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -29,7 +31,9 @@ const branchSchema = z.object({
     path: ["tokenRangeEnd"],
 });
 
-export type BranchFormData = z.infer<typeof branchSchema>;
+export type BranchFormData = z.infer<typeof branchSchema> & {
+    imageFile?: File | null;
+};
 
 interface BranchFormProps {
     initialData?: Branch;
@@ -39,6 +43,50 @@ interface BranchFormProps {
 }
 
 export default function BranchForm({ initialData, onSubmit, isLoading, isEdit = false }: BranchFormProps) {
+    const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
+    const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(
+        resolveImageUrl(initialData?.imageUrl || initialData?.avatar) ?? null
+    );
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (imagePreviewUrl?.startsWith('blob:')) {
+                URL.revokeObjectURL(imagePreviewUrl);
+            }
+        };
+    }, [imagePreviewUrl]);
+
+    const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file || !file.type.startsWith('image/')) {
+            return;
+        }
+
+        const nextPreviewUrl = URL.createObjectURL(file);
+        setSelectedImageFile(file);
+        setImagePreviewUrl((currentPreviewUrl) => {
+            if (currentPreviewUrl?.startsWith('blob:')) {
+                URL.revokeObjectURL(currentPreviewUrl);
+            }
+            return nextPreviewUrl;
+        });
+    };
+
+    const handleResetSelectedImage = () => {
+        setSelectedImageFile(null);
+        setImagePreviewUrl((currentPreviewUrl) => {
+            if (currentPreviewUrl?.startsWith('blob:')) {
+                URL.revokeObjectURL(currentPreviewUrl);
+            }
+            return resolveImageUrl(initialData?.imageUrl || initialData?.avatar) ?? null;
+        });
+
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
     const {
         register,
         handleSubmit,
@@ -58,9 +106,51 @@ export default function BranchForm({ initialData, onSubmit, isLoading, isEdit = 
     // eslint-disable-next-line react-hooks/incompatible-library
     const tokenSystemEnabled = watch('tokenSystemEnabled');
 
+    const handleFormSubmit = async (data: BranchFormData) => {
+        await onSubmit({ ...data, imageFile: selectedImageFile });
+    };
+
     return (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
             <div className="space-y-4">
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                        <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-lg border border-gray-300 bg-white">
+                            {imagePreviewUrl ? (
+                                <div
+                                    className="h-full w-full bg-contain bg-center bg-no-repeat"
+                                    style={{ backgroundImage: `url(${imagePreviewUrl})` }}
+                                />
+                            ) : (
+                                <span className="text-xs text-gray-400">No logo</span>
+                            )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-gray-900">Branch Logo</p>
+                            <p className="mt-1 text-xs text-gray-600">
+                                Shown on the customer menu page and branch list. JPG, PNG, or WebP up to 5MB.
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleImageChange}
+                                    className="hidden"
+                                />
+                                <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
+                                    {imagePreviewUrl ? 'Change Logo' : 'Upload Logo'}
+                                </Button>
+                                {(selectedImageFile || initialData?.imageUrl) && (
+                                    <Button type="button" variant="ghost" onClick={handleResetSelectedImage}>
+                                        Reset
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <Input
                     label="Branch Name"
                     {...register('name')}

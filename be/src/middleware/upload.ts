@@ -59,3 +59,7 @@ export const uploadMenuImage = multer({
 });
 
 export const uploadEmployeeImage = createImageUpload(() => getEmployeeUploadDirName());
+
+export const getBranchLogoUploadDirName = () => 'branch-logos';
+
+export const uploadBranchImage = createImageUpload(() => getBranchLogoUploadDirName());

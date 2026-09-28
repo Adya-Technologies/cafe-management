@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { AdminController } from './admin.controller';
 import { authenticate } from '../../middleware/auth';
 import { requireRole } from '../../middleware/rbac';
-import { uploadEmployeeImage } from '../../middleware/upload';
+import { uploadEmployeeImage, uploadBranchImage } from '../../middleware/upload';
 
 const router: Router = Router();
 
@@ -47,8 +47,13 @@ router.get(
 
 // Everything below requires admin-only permissions
 router.use(requireRole('ADMIN', 'SUPER_ADMIN'));
-router.post('/branches', AdminController.createBranchValidation, AdminController.createBranch);
-router.put('/branches/:id', AdminController.updateBranch);
+router.post(
+    '/branches',
+    uploadBranchImage.single('image'),
+    AdminController.createBranchValidation,
+    AdminController.createBranch
+);
+router.put('/branches/:id', uploadBranchImage.single('image'), AdminController.updateBranch);
 router.delete('/branches/:id', AdminController.deleteBranch);
 
 router.post(

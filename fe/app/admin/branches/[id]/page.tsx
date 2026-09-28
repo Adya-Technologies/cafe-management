@@ -57,6 +57,7 @@ export default function EditBranchPage() {
                 tokenSystemEnabled: data.tokenSystemEnabled,
                 tokenRangeStart: data.tokenRangeStart,
                 tokenRangeEnd: data.tokenRangeEnd,
+                imageFile: data.imageFile,
             });
 
             setToast({

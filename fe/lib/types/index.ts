@@ -75,6 +75,7 @@ export interface CreateBranchData {
     tokenRangeStart?: number;
     tokenRangeEnd?: number;
     maxTokenNumber?: number;
+    imageFile?: File | null;
 }
 
 // Menu Item Types

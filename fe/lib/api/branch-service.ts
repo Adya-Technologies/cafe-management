@@ -1,6 +1,22 @@
 import apiClient from './api-client';
 import { Branch, CreateBranchData } from '../types';
 
+const buildBranchFormData = (data: Partial<CreateBranchData>) => {
+    const payload = toPayload(data);
+    const formData = new FormData();
+
+    if (payload.name !== undefined) formData.append('name', payload.name);
+    if (payload.location !== undefined) formData.append('location', payload.location);
+    if (payload.hasTokenSystem !== undefined) formData.append('hasTokenSystem', String(payload.hasTokenSystem));
+    if (payload.tokenSystemEnabled !== undefined) formData.append('tokenSystemEnabled', String(payload.tokenSystemEnabled));
+    if (payload.tokenRangeStart !== undefined) formData.append('tokenRangeStart', String(payload.tokenRangeStart));
+    if (payload.tokenRangeEnd !== undefined) formData.append('tokenRangeEnd', String(payload.tokenRangeEnd));
+    if (payload.maxTokenNumber !== undefined) formData.append('maxTokenNumber', String(payload.maxTokenNumber));
+    if (data.imageFile) formData.append('image', data.imageFile);
+
+    return formData;
+};
+
 const dedupeById = <T extends { id: string }>(items: T[]): T[] => {
     const seen = new Set<string>();
 
@@ -56,12 +72,16 @@ export const branchService = {
     },
 
     async createBranch(data: CreateBranchData): Promise<Branch> {
-        const response = await apiClient.post<Branch>('/admin/branches', toPayload(data));
+        const response = await apiClient.post<Branch>('/admin/branches', buildBranchFormData(data), {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
         return normalizeBranch(response.data);
     },
 
     async updateBranch(id: string, data: Partial<CreateBranchData>): Promise<Branch> {
-        const response = await apiClient.put<Branch>(`/admin/branches/${id}`, toPayload(data));
+        const response = await apiClient.put<Branch>(`/admin/branches/${id}`, buildBranchFormData(data), {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
         return normalizeBranch(response.data);
     },
 

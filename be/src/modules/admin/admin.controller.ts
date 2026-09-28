@@ -2,7 +2,14 @@ import { Response } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import { AdminService } from './admin.service';
 import { body, validationResult } from 'express-validator';
-import { getEmployeeUploadDirName } from '../../middleware/upload';
+import { getEmployeeUploadDirName, getBranchLogoUploadDirName } from '../../middleware/upload';
+
+const toBoolean = (value: unknown): boolean | undefined => {
+    if (typeof value === 'boolean') return value;
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return undefined;
+};
 
 const isManager = (req: AuthRequest) => req.user?.role === 'MANAGER';
 const managerBranchIds = (req: AuthRequest) => req.user?.branchIds || [];
@@ -253,17 +260,19 @@ export class AdminController {
                 return res.status(400).json({ error: 'Tenant context missing' });
             }
 
-            const resolvedHasTokenSystem =
-                typeof hasTokenSystem === 'boolean' ? hasTokenSystem : tokenSystemEnabled;
+            const resolvedHasTokenSystem = toBoolean(hasTokenSystem) ?? toBoolean(tokenSystemEnabled);
             const resolvedMaxTokenNumber = maxTokenNumber ?? tokenRangeEnd;
             const parsedMaxTokenNumber =
                 resolvedMaxTokenNumber === undefined ? undefined : Number(resolvedMaxTokenNumber);
+            const file = req.file as Express.Multer.File | undefined;
+            const imageUrl = file ? `/uploads/${getBranchLogoUploadDirName()}/${file.filename}` : undefined;
 
             const branch = await AdminService.createBranch({
                 name,
                 location,
-                hasTokenSystem: resolvedHasTokenSystem,
+                hasTokenSystem: resolvedHasTokenSystem ?? false,
                 maxTokenNumber: parsedMaxTokenNumber,
+                imageUrl,
                 tenantId: req.user.tenantId,
             });
 
@@ -338,11 +347,12 @@ export class AdminController {
                 return res.status(400).json({ error: 'Tenant context missing' });
             }
 
-            const resolvedHasTokenSystem =
-                typeof hasTokenSystem === 'boolean' ? hasTokenSystem : tokenSystemEnabled;
+            const resolvedHasTokenSystem = toBoolean(hasTokenSystem) ?? toBoolean(tokenSystemEnabled);
             const resolvedMaxTokenNumber = maxTokenNumber ?? tokenRangeEnd;
             const parsedMaxTokenNumber =
                 resolvedMaxTokenNumber === undefined ? undefined : Number(resolvedMaxTokenNumber);
+            const file = req.file as Express.Multer.File | undefined;
+            const imageUrl = file ? `/uploads/${getBranchLogoUploadDirName()}/${file.filename}` : undefined;
 
             const branch = await AdminService.updateBranch(
                 id as string,
@@ -352,6 +362,7 @@ export class AdminController {
                     location,
                     hasTokenSystem: resolvedHasTokenSystem,
                     maxTokenNumber: parsedMaxTokenNumber,
+                    imageUrl,
                 }
             );
 

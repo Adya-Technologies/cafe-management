@@ -191,6 +191,7 @@ export class AdminService {
         location: string;
         hasTokenSystem: boolean;
         maxTokenNumber?: number;
+        imageUrl?: string;
         tenantId: string;
     }) {
         await assertBranchEntitlement(data.tenantId);
@@ -202,6 +203,7 @@ export class AdminService {
                 location: data.location,
                 hasTokenSystem: data.hasTokenSystem,
                 maxTokenNumber: data.maxTokenNumber,
+                imageUrl: data.imageUrl,
                 tenantId: data.tenantId,
             },
         });
@@ -271,6 +273,7 @@ export class AdminService {
             location?: string;
             hasTokenSystem?: boolean;
             maxTokenNumber?: number;
+            imageUrl?: string;
         }
     ) {
         const existing = await prisma.branch.findFirst({
