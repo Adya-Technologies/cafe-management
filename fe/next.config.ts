@@ -47,6 +47,7 @@ const buildRemotePatterns = (): NonNullable<
 };
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   turbopack: {
     root: projectRoot,
   },
