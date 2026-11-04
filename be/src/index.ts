@@ -8,6 +8,7 @@ import adminRoutes from './modules/admin/admin.routes';
 import menuRoutes from './modules/menu/menu.routes';
 import orderRoutes from './modules/order/order.routes';
 import staffRoutes from './modules/staff/staff.routes';
+import voiceRoutes from './modules/voice/voice.routes';
 
 dotenv.config();
 
@@ -19,6 +20,7 @@ const allowedOrigins = [
     'http://localhost:4000',
     'http://82.180.144.91:4000',
     'https://82.180.144.91:4000',
+    'https://pasa-yard.ubucknepal.com',
 ];
 
 // Middleware
@@ -71,6 +73,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/menu', menuRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/staff', staffRoutes);
+app.use('/api/voice', voiceRoutes);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

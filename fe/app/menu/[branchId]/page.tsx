@@ -7,6 +7,7 @@ import { menuService } from '@/lib/api/menu-service';
 import { MenuItem, Branch, Order } from '@/lib/types';
 import Spinner from '@/components/ui/Spinner';
 import CartSidebar from '@/components/CartSidebar';
+import VoiceAssistant from '@/components/voice/VoiceAssistant';
 import { useCartStore } from '@/lib/store/cart-store';
 import Toast from '@/components/ui/Toast';
 import { resolveImageUrl } from '@/lib/utils/image';
@@ -453,6 +454,19 @@ function PublicMenuPageContent() {
             )}
 
             <CartSidebar isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+
+            <VoiceAssistant
+                branchId={branchId}
+                branchName={branch.name}
+                menuItems={menuItems}
+                raised={cartItemCount > 0}
+                onShowCart={() => setIsCartOpen(true)}
+                onShowOrders={() => setCurrentTab('ORDERS')}
+                onShowMenu={(category) => {
+                    setCurrentTab('MENU');
+                    setSelectedCategory(category && categories.includes(category) ? category : 'ALL');
+                }}
+            />
 
             {/* Menu Item Image Preview */}
             {previewImage && (

@@ -2,6 +2,8 @@ services:
   backend:
     build:
       context: ./be
+      args:
+        INSTALL_CLAUDE_CLI: ${INSTALL_CLAUDE_CLI:-true}
     restart: unless-stopped
     networks:
       - default
@@ -13,6 +15,13 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       FRONTEND_URL: ${FRONTEND_URL}
+      # Voice ordering assistant
+      VOICE_AI_ENGINE: ${VOICE_AI_ENGINE:-claude-cli}
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
+      VOICE_CLAUDE_MODEL: ${VOICE_CLAUDE_MODEL:-haiku}
+      VOICE_CLAUDE_TIMEOUT_MS: ${VOICE_CLAUDE_TIMEOUT_MS:-20000}
+      VOICE_CLAUDE_MAX_CONCURRENT: ${VOICE_CLAUDE_MAX_CONCURRENT:-3}
+      VOICE_RATE_LIMIT_PER_MIN: ${VOICE_RATE_LIMIT_PER_MIN:-20}
     volumes:
       - backend-uploads:/app/uploads
 
