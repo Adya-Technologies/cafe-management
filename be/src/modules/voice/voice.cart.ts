@@ -42,13 +42,39 @@ export const cartTotal = (cart: VoiceCartLine[], menu: VoiceMenuItem[]) => {
     return cart.reduce((sum, line) => sum + (byId.get(line.menuItemId)?.price ?? 0) * line.quantity, 0);
 };
 
+const pluralize = (name: string, qty: number) => {
+    if (qty === 1 || /s$/i.test(name)) return name;
+    return /(ch|sh|x)$/i.test(name) ? `${name}es` : `${name}s`;
+};
+
+/** "2 Lattes, a Club Sandwich and 3 Momos" */
+export const joinNatural = (parts: string[], and = 'and') => {
+    if (parts.length <= 1) return parts.join('');
+    return `${parts.slice(0, -1).join(', ')} ${and} ${parts[parts.length - 1]}`;
+};
+
+export const describeQty = (name: string, qty: number) =>
+    qty === 1 ? `${/^[aeiou]/i.test(name) ? 'an' : 'a'} ${name}` : `${qty} ${pluralize(name, qty)}`;
+
+export const describeQtyNe = (name: string, qty: number) => (qty === 1 ? `एउटा ${name}` : `${qty} वटा ${name}`);
+
 export const describeCart = (cart: VoiceCartLine[], menu: VoiceMenuItem[]) => {
     const byId = new Map(menu.map((m) => [m.id, m]));
-    return cart
-        .map((line) => {
+    return joinNatural(
+        cart.flatMap((line) => {
             const item = byId.get(line.menuItemId);
-            return item ? `${line.quantity} ${item.name}` : null;
+            return item ? [describeQty(item.name, line.quantity)] : [];
         })
-        .filter(Boolean)
-        .join(', ');
+    );
+};
+
+export const describeCartNe = (cart: VoiceCartLine[], menu: VoiceMenuItem[]) => {
+    const byId = new Map(menu.map((m) => [m.id, m]));
+    return joinNatural(
+        cart.flatMap((line) => {
+            const item = byId.get(line.menuItemId);
+            return item ? [describeQtyNe(item.name, line.quantity)] : [];
+        }),
+        'र'
+    );
 };

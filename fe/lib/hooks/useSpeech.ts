@@ -36,6 +36,15 @@ const getRecognitionCtor = (): SpeechRecognitionCtor | null => {
 
 export type SpeechLang = 'en' | 'ne';
 
+/** Make text sound natural when read aloud: "Rs. 250" -> "250 rupees". */
+export const toSpokenText = (text: string, lang: SpeechLang) =>
+    text
+        .replace(/(?:Rs\.?|NPR|रु\.?)\s?(\d{1,3}(?:,\d{3})+|\d+)/gi, (_m, n: string) => `${n.replace(/,/g, '')} ${lang === 'ne' ? 'रुपैयाँ' : 'rupees'}`)
+        .replace(/[()]/g, ', ')
+        .replace(/\s+,/g, ',')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+
 const STT_LANG: Record<SpeechLang, string> = { en: 'en-IN', ne: 'ne-NP' };
 
 const STT_ERRORS: Record<string, string> = {
@@ -79,13 +88,28 @@ export function useSpeech() {
         };
     }, []);
 
+    /**
+     * Best voice for a list of language prefixes (in preference order). Natural/neural
+     * voices (Edge "Online (Natural)", Google, Apple Enhanced/Premium) sound far more
+     * human than the default robotic ones, so quality outranks exact locale.
+     */
     const pickVoice = useCallback(
         (prefixes: string[]) => {
-            for (const prefix of prefixes) {
-                const match = voices.find((v) => v.lang.toLowerCase().replace('_', '-').startsWith(prefix));
-                if (match) return match;
+            let best: SpeechSynthesisVoice | null = null;
+            let bestScore = -Infinity;
+            for (const voice of voices) {
+                const lang = voice.lang.toLowerCase().replace('_', '-');
+                const prefixIndex = prefixes.findIndex((p) => lang.startsWith(p));
+                if (prefixIndex < 0) continue;
+                const name = voice.name.toLowerCase();
+                const quality = /natural|neural/.test(name) ? 3 : /premium|enhanced|wavenet/.test(name) ? 2 : /google|siri/.test(name) ? 1 : 0;
+                const score = quality * 10 - prefixIndex;
+                if (score > bestScore) {
+                    best = voice;
+                    bestScore = score;
+                }
             }
-            return null;
+            return best;
         },
         [voices]
     );
@@ -108,15 +132,19 @@ export function useSpeech() {
         setIsSpeaking(false);
     }, []);
 
+    /**
+     * Speak text. By default it interrupts whatever is being said; with
+     * { queue: true } it waits for the current speech (e.g. a short "one moment").
+     */
     const speak = useCallback(
-        (text: string, lang: SpeechLang, onEnd?: () => void) => {
+        (text: string, lang: SpeechLang, onEnd?: () => void, options?: { queue?: boolean }) => {
             const synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
             if (!synth || !text.trim()) {
                 onEnd?.();
                 return;
             }
-            synth.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
+            if (!options?.queue) synth.cancel();
+            const utterance = new SpeechSynthesisUtterance(toSpokenText(text, lang));
             const voice = lang === 'ne' ? nepaliVoice : pickVoice(['en-in', 'en-gb', 'en-us', 'en']);
             if (voice) {
                 utterance.voice = voice;
@@ -124,22 +152,38 @@ export function useSpeech() {
             } else {
                 utterance.lang = lang === 'ne' ? 'ne-NP' : 'en-IN';
             }
-            utterance.rate = 1;
+            utterance.rate = lang === 'ne' ? 0.95 : 1;
+            utterance.pitch = 1;
             let done = false;
+            let started = false;
             const finish = () => {
                 if (done) return;
                 done = true;
                 setIsSpeaking(false);
                 onEnd?.();
             };
+            utterance.onstart = () => {
+                started = true;
+                setIsSpeaking(true);
+                // Chrome sometimes never fires onend; don't leave the UI stuck.
+                setTimeout(finish, Math.min(30000, 3000 + text.length * 90));
+            };
             utterance.onend = finish;
             utterance.onerror = finish;
             setIsSpeaking(true);
             synth.speak(utterance);
-            // Chrome sometimes never fires onend; don't leave the UI stuck.
-            setTimeout(finish, Math.min(30000, 4000 + text.length * 90));
+            // If speech never starts at all (no voices, blocked audio), carry on.
+            setTimeout(() => {
+                if (!started) finish();
+            }, options?.queue ? 15000 : 4000);
         },
         [nepaliVoice, pickVoice]
+    );
+
+    /** Promise form of speak, for awaiting a short acknowledgment. */
+    const speakAsync = useCallback(
+        (text: string, lang: SpeechLang) => new Promise<void>((resolve) => speak(text, lang, resolve)),
+        [speak]
     );
 
     const stopListening = useCallback(() => {
@@ -213,6 +257,7 @@ export function useSpeech() {
         listen,
         stopListening,
         speak,
+        speakAsync,
         stopSpeaking,
         unlock,
     };

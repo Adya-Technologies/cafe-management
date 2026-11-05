@@ -1,4 +1,4 @@
-import { applyCartActions, cartTotal, describeCart } from '../voice.cart';
+import { applyCartActions, cartTotal, describeCart, describeCartNe, describeQty, describeQtyNe, joinNatural } from '../voice.cart';
 import { OrderTypeValue, VoiceAction, VoiceEngineContext, VoiceEngineResult, VoiceMenuItem } from '../voice.types';
 
 /**
@@ -115,7 +115,7 @@ const STOPWORDS = new Set([
 const has = (text: string, patterns: RegExp[]) => patterns.some((p) => p.test(text));
 
 const RE = {
-    confirm: [/\b(yes|yeah|yep|yup|ok|okay|sure|confirm|confirmed|go ahead|place it|do it|correct|right)\b/, /\b(ho|huncha|hunchha|hunxa|thik cha|thikcha|hajur)\b/, /(हो|हुन्छ|ठिक छ|ठीक छ|हजुर|कन्फर्म)/],
+    confirm: [/\b(yes|yeah|yep|yup|ok|okay|sure|confirm|confirmed|go ahead|place it|send it|do it|correct|right|perfect|please do)\b/, /\b(ho|huncha|hunchha|hunxa|thik cha|thikcha|hajur|pathaidinus|pathau)\b/, /(हो|हुन्छ|ठिक छ|ठीक छ|हजुर|कन्फर्म|पठाइदिनु|पठाउनु)/],
     deny: [/\b(no|nope|cancel|wait|stop|not yet|don t)\b/, /\b(hoina|pardaina|chaidaina|chahidaina|parkhanus)\b/, /(होइन|पर्दैन|चाहिँदैन|चाहिदैन|पर्खनुस)/],
     clear: [/\b(clear|empty|reset)\b.*\b(cart|order|basket|all)\b/, /\bstart over\b/, /\b(sabai|sabbai) (hatau|hataunus|hatai)/, /(सबै हटाउ|कार्ट खाली)/],
     remove: [/\b(remove|delete|drop|take off|take out|cancel the|without|minus)\b/, /\b(hatau|hataunus|hataidinus|nachahine|chaidaina)\b/, /(हटाउ|हटाइदिनु|चाहिँदैन|चाहिदैन)/],
@@ -209,6 +209,9 @@ const rs = (amount: number) => `Rs. ${Math.round(amount)}`;
 
 const reply = (en: string, ne: string, actions: VoiceAction[] = []): VoiceEngineResult => ({ reply: en, replyNe: ne, actions });
 
+/** Pick one phrasing at random so the host doesn't sound like a recording. */
+const pick = (options: [string, string][]): [string, string] => options[Math.floor(Math.random() * options.length)];
+
 export const runRulesEngine = (ctx: VoiceEngineContext): VoiceEngineResult => {
     const { request, menu } = ctx;
     const raw = request.message.trim();
@@ -236,8 +239,8 @@ export const runRulesEngine = (ctx: VoiceEngineContext): VoiceEngineResult => {
     const confirmationPrompt = (cart = request.cart): VoiceEngineResult => {
         if (cart.length === 0) {
             return reply(
-                'Your cart is empty. What would you like to order?',
-                'तपाईंको कार्ट खाली छ। के अर्डर गर्नुहुन्छ?',
+                "You haven't chosen anything yet. What can I get started for you?",
+                'हजुरले अहिलेसम्म केही रोज्नुभएको छैन। के ल्याइदिऊँ?',
                 actions
             );
         }
@@ -245,19 +248,21 @@ export const runRulesEngine = (ctx: VoiceEngineContext): VoiceEngineResult => {
             const missingEn = !customerName && !customerPhone ? 'your name and phone number' : !customerName ? 'your name' : 'your phone number';
             const missingNe = !customerName && !customerPhone ? 'नाम र फोन नम्बर' : !customerName ? 'नाम' : 'फोन नम्बर';
             return reply(
-                `For takeaway I need ${missingEn}. For example: my name is Ram, phone 9841000000.`,
-                `टेकअवेको लागि तपाईंको ${missingNe} चाहिन्छ।`,
+                `Of course. For takeaway, may I have ${missingEn}, so we can reach you when it's ready?`,
+                `पक्कै हजुर। टेकअवेको लागि हजुरको ${missingNe} पाउँ, तयार भएपछि खबर गर्छौं।`,
                 actions
             );
         }
         const summary = describeCart(cart, menu);
+        const summaryNe = describeCartNe(cart, menu);
         const total = rs(cartTotal(cart, menu));
-        const typeEn = effectiveType === 'TAKEAWAY' ? 'takeaway' : request.tableLabel ? `dine-in at table ${request.tableLabel}` : 'dine-in';
-        const typeNe = effectiveType === 'TAKEAWAY' ? 'टेकअवे' : request.tableLabel ? `टेबल ${request.tableLabel} मा` : 'यहीँ खाने';
+        const whereEn = effectiveType === 'TAKEAWAY' ? 'to take away' : request.tableLabel ? `for table ${request.tableLabel}` : 'to enjoy here';
+        const whereNe = effectiveType === 'TAKEAWAY' ? 'टेकअवेको लागि' : request.tableLabel ? `टेबल ${request.tableLabel} को लागि` : 'यहीँ खानको लागि';
+        const name = customerName ? `, ${customerName.split(' ')[0]}` : '';
         actions.push({ type: 'request_confirmation' });
         return reply(
-            `Your order: ${summary}. Total ${total}, ${typeEn}. Shall I place the order?`,
-            `तपाईंको अर्डर: ${summary}। जम्मा ${total}, ${typeNe}। अर्डर गरौं?`,
+            `Wonderful${name}. So that's ${summary} ${whereEn}, coming to ${total}. Shall I send it to the kitchen?`,
+            `धन्यवाद हजुर। ${summaryNe}, ${whereNe}, जम्मा ${total}। किचनमा पठाइदिऊँ?`,
             actions
         );
     };
@@ -265,13 +270,16 @@ export const runRulesEngine = (ctx: VoiceEngineContext): VoiceEngineResult => {
     // 1. Confirmation step
     if (request.awaitingConfirmation) {
         if (has(text, RE.deny)) {
-            return reply('No problem, I have not placed it. What would you like to change?', 'ठिक छ, अर्डर गरिएको छैन। के परिवर्तन गर्ने?', actions);
+            return reply(...pick([
+                ["Of course, I'll hold it. What would you like to change?", 'हुन्छ हजुर, अहिले पठाउँदिनँ। के परिवर्तन गर्ने?'],
+                ['No problem at all. Take your time; what shall I change?', 'केही छैन हजुर, आरामले भन्नुहोस्। के परिवर्तन गरौं?'],
+            ]), actions);
         }
         if (has(text, RE.confirm) || has(text, RE.checkout)) {
             if (request.cart.length === 0) return confirmationPrompt();
             if (effectiveType === 'TAKEAWAY' && (!customerName || !customerPhone)) return confirmationPrompt();
             actions.push({ type: 'place_order', orderType: effectiveType, customerName, customerPhone });
-            return reply('Placing your order now.', 'तपाईंको अर्डर गर्दैछु।', actions);
+            return reply('Perfect, sending it to the kitchen now.', 'हुन्छ हजुर, अहिल्यै किचनमा पठाउँदैछु।', actions);
         }
         if (detailsChanged && !matchItems(text, menu).length) {
             return confirmationPrompt();
@@ -280,19 +288,19 @@ export const runRulesEngine = (ctx: VoiceEngineContext): VoiceEngineResult => {
 
     if (has(text, RE.greet) && text.split(' ').length <= 3) {
         return reply(
-            `Namaste! Welcome to ${ctx.branchName}. Tell me what you would like, for example "two lattes".`,
-            `नमस्ते! ${ctx.branchName} मा स्वागत छ। के लिनुहुन्छ भन्नुहोस्, जस्तै "दुईवटा लाटे"।`
+            `Namaste, and welcome to ${ctx.branchName}! What can I get for you today?`,
+            `नमस्ते हजुर, ${ctx.branchName} मा स्वागत छ! आज के ल्याइदिऊँ?`
         );
     }
 
     if (has(text, RE.clear)) {
         actions.push({ type: 'clear_cart' });
-        return reply('I have cleared your cart.', 'तपाईंको कार्ट खाली गरें।', actions);
+        return reply("All cleared. Let's start fresh; what would you like?", 'सबै हटाइदिएँ हजुर। नयाँ सुरु गरौं, के लिनुहुन्छ?', actions);
     }
 
     if (has(text, RE.status)) {
         actions.push({ type: 'show_orders' });
-        return reply('Here is the status of your orders.', 'तपाईंको अर्डरको स्थिति यहाँ छ।', actions);
+        return reply("Here's where your order is right now; it's on the screen for you.", 'हजुरको अर्डर कहाँ पुग्यो, स्क्रिनमा देखाइदिएँ।', actions);
     }
 
     // 2. Item-level intents
@@ -303,6 +311,7 @@ export const runRulesEngine = (ctx: VoiceEngineContext): VoiceEngineResult => {
     const changes: VoiceAction[] = [];
     const ambiguous: VoiceMenuItem[][] = [];
     const addedEn: string[] = [];
+    const addedNe: string[] = [];
     const updatedEn: string[] = [];
     const updatedNe: string[] = [];
     const removedEn: string[] = [];
@@ -327,7 +336,11 @@ export const runRulesEngine = (ctx: VoiceEngineContext): VoiceEngineResult => {
         const item = top.item;
 
         if (isPrice && !isRemove) {
-            return reply(`${item.name} is ${rs(item.price)}.`, `${item.name} ${rs(item.price)} पर्छ।`, actions);
+            return reply(
+                `The ${item.name} is ${rs(item.price)}. Would you like me to add one for you?`,
+                `${item.name} ${rs(item.price)} पर्छ हजुर। एउटा थपिदिऊँ?`,
+                actions
+            );
         }
         if (isRemove) {
             if (qty && request.cart.find((l) => l.menuItemId === item.id && l.quantity > qty)) {
@@ -339,18 +352,23 @@ export const runRulesEngine = (ctx: VoiceEngineContext): VoiceEngineResult => {
             removedEn.push(item.name);
         } else if (isSet && qty) {
             changes.push({ type: 'set_quantity', menuItemId: item.id, quantity: Math.min(qty, 50) });
-            updatedEn.push(`${item.name} to ${Math.min(qty, 50)}`);
+            updatedEn.push(describeQty(item.name, Math.min(qty, 50)));
             updatedNe.push(`${item.name} ${Math.min(qty, 50)} वटा`);
         } else {
             const quantity = Math.min(qty ?? 1, 50);
             changes.push({ type: 'add_item', menuItemId: item.id, quantity });
-            addedEn.push(`${quantity} ${item.name}`);
+            addedEn.push(describeQty(item.name, quantity));
+            addedNe.push(describeQtyNe(item.name, quantity));
         }
     }
 
     if (ambiguous.length > 0 && changes.length === 0) {
         const options = ambiguous[0].map((i) => `${i.name} (${rs(i.price)})`).join(', ');
-        return reply(`Which one would you like: ${options}?`, `कुन चाहिन्छ: ${options}?`, actions);
+        return reply(
+            `We have a couple of those: ${joinNatural(ambiguous[0].map((i) => `the ${i.name} at ${rs(i.price)}`), 'or')}. Which would you prefer?`,
+            `हामीसँग ${joinNatural(ambiguous[0].map((i) => `${i.name} (${rs(i.price)})`), 'वा')} छ। कुन रुचाउनुहुन्छ?`,
+            actions
+        );
     }
 
     if (changes.length > 0) {
@@ -362,22 +380,33 @@ export const runRulesEngine = (ctx: VoiceEngineContext): VoiceEngineResult => {
         const total = rs(cartTotal(newCart, menu));
         const partsEn: string[] = [];
         const partsNe: string[] = [];
-        if (addedEn.length) { partsEn.push(`Added ${addedEn.join(', ')}.`); partsNe.push(`${addedEn.join(', ')} थपियो।`); }
-        if (updatedEn.length) { partsEn.push(`Updated ${updatedEn.join(', ')}.`); partsNe.push(`${updatedNe.join(', ')} बनाइयो।`); }
-        if (removedEn.length) { partsEn.push(`Removed ${removedEn.join(', ')}.`); partsNe.push(`${removedEn.join(', ')} हटाइयो।`); }
+        if (addedEn.length) {
+            const [en, ne] = pick([
+                [`Lovely choice, ${joinNatural(addedEn)}.`, `राम्रो रोजाइ हजुर, ${joinNatural(addedNe, 'र')}।`],
+                [`${joinNatural(addedEn)}, coming right up.`, `${joinNatural(addedNe, 'र')}, ल्याइदिन्छु हजुर।`],
+                [`I've got ${joinNatural(addedEn)} down for you.`, `${joinNatural(addedNe, 'र')} लेखें हजुर।`],
+            ]);
+            partsEn.push(en.charAt(0).toUpperCase() + en.slice(1));
+            partsNe.push(ne);
+        }
+        if (updatedEn.length) { partsEn.push(`Sure, I've made that ${joinNatural(updatedEn)}.`); partsNe.push(`हुन्छ, ${joinNatural(updatedNe, 'र')} बनाइदिएँ।`); }
+        if (removedEn.length) { partsEn.push(`Of course, I've taken off the ${joinNatural(removedEn)}.`); partsNe.push(`हुन्छ हजुर, ${joinNatural(removedEn, 'र')} हटाइदिएँ।`); }
         if (ambiguous.length) {
             const options = ambiguous[0].map((i) => `${i.name} (${rs(i.price)})`).join(', ');
             return reply(
-                `${partsEn.join(' ')} Total ${total}. Also, which one did you mean: ${options}?`,
-                `${partsNe.join(' ')} जम्मा ${total}। अनि, कुन चाहिन्छ: ${options}?`,
+                `${partsEn.join(' ')} And for the other one, did you mean ${joinNatural(ambiguous[0].map((i) => i.name), 'or')}?`,
+                `${partsNe.join(' ')} अनि अर्कोमा, ${options} मध्ये कुन हजुर?`,
                 actions
             );
         }
-        return reply(
-            `${partsEn.join(' ')} Your total is ${total}. Anything else?`,
-            `${partsNe.join(' ')} जम्मा ${total}। अरु केही?`,
-            actions
-        );
+        const [tailEn, tailNe] = removedEn.length && !addedEn.length && !updatedEn.length
+            ? [`That brings you to ${total}.`, `अब जम्मा ${total} भयो।`]
+            : pick([
+                ['Anything else for you?', 'अरु केही ल्याइदिऊँ हजुर?'],
+                ['What else can I get you?', 'अरु के चाहियो हजुर?'],
+                ['Would you like anything else with that?', 'योसँगै अरु केही लिनुहुन्छ?'],
+            ]);
+        return reply(`${partsEn.join(' ')} ${tailEn}`, `${partsNe.join(' ')} ${tailNe}`, actions);
     }
 
     // 3. Cart / checkout / menu
@@ -388,11 +417,11 @@ export const runRulesEngine = (ctx: VoiceEngineContext): VoiceEngineResult => {
     if (has(text, RE.cart)) {
         actions.push({ type: 'show_cart' });
         if (request.cart.length === 0) {
-            return reply('Your cart is empty.', 'तपाईंको कार्ट खाली छ।', actions);
+            return reply("You haven't ordered anything yet. Shall I tell you what's good today?", 'अहिलेसम्म केही अर्डर गर्नुभएको छैन हजुर। आज के राम्रो छ भनिदिऊँ?', actions);
         }
         const total = rs(cartTotal(request.cart, menu));
         const summary = describeCart(request.cart, menu);
-        return reply(`You have ${summary}. Total ${total}.`, `तपाईंसँग ${summary} छ। जम्मा ${total}।`, actions);
+        return reply(`So far you have ${summary}, which comes to ${total}.`, `अहिलेसम्म ${describeCartNe(request.cart, menu)} छ, जम्मा ${total}।`, actions);
     }
 
     const categories = Array.from(new Set(menu.map((m) => m.category)));
@@ -404,25 +433,29 @@ export const runRulesEngine = (ctx: VoiceEngineContext): VoiceEngineResult => {
         if (mentionedCategory) {
             const items = menu.filter((m) => m.category === mentionedCategory).slice(0, 6);
             actions.push({ type: 'show_menu', category: mentionedCategory });
-            const list = items.map((i) => `${i.name} ${rs(i.price)}`).join(', ');
-            return reply(`In ${mentionedCategory} we have ${list}.`, `${mentionedCategory} मा ${list} छ।`, actions);
+            const list = joinNatural(items.map((i) => `${i.name} at ${rs(i.price)}`));
+            const listNe = joinNatural(items.map((i) => `${i.name} (${rs(i.price)})`), 'र');
+            return reply(
+                `For ${mentionedCategory.toLowerCase()} we have ${list}. Does anything catch your eye?`,
+                `${mentionedCategory} मा ${listNe} छ हजुर। कुन मन पर्यो?`,
+                actions
+            );
         }
         actions.push({ type: 'show_menu' });
-        const list = categories.slice(0, 8).join(', ');
+        const list = joinNatural(categories.slice(0, 8).map((c) => c.toLowerCase()));
         return reply(
-            `We have ${list}. Which would you like to hear about?`,
-            `हामीसँग ${list} छ। कुन बारेमा सुन्न चाहनुहुन्छ?`,
+            `Of course. We have ${list}; it's all on your screen now. What are you in the mood for?`,
+            `पक्कै हजुर। हामीसँग ${joinNatural(categories.slice(0, 8), 'र')} छ, स्क्रिनमा देखाइदिएँ। के खाने मन छ?`,
             actions
         );
     }
 
     if (detailsChanged) {
-        return reply('Got it. What would you like to order?', 'ठिक छ। के अर्डर गर्नुहुन्छ?', actions);
+        return reply('Thank you, noted. What can I get started for you?', 'धन्यवाद हजुर, लेखें। के ल्याइदिऊँ?', actions);
     }
 
-    return reply(
-        "Sorry, I didn't catch that item. You can say something like \"two lattes\" or ask \"what's on the menu?\"",
-        'माफ गर्नुहोस्, बुझिनँ। "दुईवटा लाटे" वा "मेनुमा के छ?" भन्न सक्नुहुन्छ।',
-        actions
-    );
+    return reply(...pick([
+        ["I'm sorry, I didn't quite catch that. Could you say it once more, or ask me what's on the menu?", 'माफ गर्नुहोला हजुर, राम्ररी सुनिनँ। फेरि एकपटक भन्नुहुन्छ कि, वा मेनुमा के छ सोध्नुहोस्।'],
+        ["Pardon me, I missed that. Which dish would you like?", 'माफ गर्नुहोला, बुझिनँ। कुन परिकार चाहियो हजुर?'],
+    ]), actions);
 };

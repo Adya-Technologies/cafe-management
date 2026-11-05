@@ -1,7 +1,7 @@
 import { MenuService } from '../menu/menu.service';
 import { ClaudeCliUnavailableError, isClaudeCliKnownMissing, runClaudeCliEngine } from './engines/claude-cli.engine';
 import { runRulesEngine } from './engines/rules.engine';
-import { applyCartActions, cartTotal, describeCart, MAX_ITEM_QUANTITY } from './voice.cart';
+import { applyCartActions, cartTotal, describeCart, describeCartNe, MAX_ITEM_QUANTITY } from './voice.cart';
 import {
     OrderTypeValue,
     VoiceAction,
@@ -154,10 +154,13 @@ const enforceOrderRules = (result: VoiceEngineResult, ctx: VoiceEngineContext): 
 
     const confirmationReply = () => {
         const summary = describeCart(cartAfter, menu);
+        const summaryNe = describeCartNe(cartAfter, menu);
         const total = rs(cartTotal(cartAfter, menu));
         const takeaway = (details.orderType ?? 'DINE_IN') === 'TAKEAWAY';
-        reply = `Your order: ${summary}. Total ${total}, ${takeaway ? 'takeaway' : 'dine-in'}. Shall I place the order?`;
-        replyNe = `तपाईंको अर्डर: ${summary}। जम्मा ${total}, ${takeaway ? 'टेकअवे' : 'यहीँ खाने'}। अर्डर गरौं?`;
+        const whereEn = takeaway ? 'to take away' : request.tableLabel ? `for table ${request.tableLabel}` : 'to enjoy here';
+        const whereNe = takeaway ? 'टेकअवेको लागि' : request.tableLabel ? `टेबल ${request.tableLabel} को लागि` : 'यहीँ खानको लागि';
+        reply = `Just to confirm, that's ${summary} ${whereEn}, coming to ${total}. Shall I send it to the kitchen?`;
+        replyNe = `एकपटक कन्फर्म गरौं हजुर: ${summaryNe}, ${whereNe}, जम्मा ${total}। किचनमा पठाइदिऊँ?`;
     };
 
     if (placeIndex >= 0) {
@@ -168,11 +171,11 @@ const enforceOrderRules = (result: VoiceEngineResult, ctx: VoiceEngineContext): 
         actions = actions.filter((a) => a.type !== 'place_order');
 
         if (cartAfter.length === 0) {
-            reply = 'Your cart is empty. What would you like to order?';
-            replyNe = 'तपाईंको कार्ट खाली छ। के अर्डर गर्नुहुन्छ?';
+            reply = "You haven't chosen anything yet. What can I get started for you?";
+            replyNe = 'हजुरले अहिलेसम्म केही रोज्नुभएको छैन। के ल्याइदिऊँ?';
         } else if (orderType === 'TAKEAWAY' && (!customerName || !customerPhone)) {
-            reply = 'For takeaway I need your name and phone number before placing the order.';
-            replyNe = 'टेकअवेको लागि अर्डर गर्नु अघि तपाईंको नाम र फोन नम्बर चाहिन्छ।';
+            reply = 'Of course. For takeaway, may I have your name and a phone number, so we can let you know when it is ready?';
+            replyNe = 'पक्कै हजुर। टेकअवेको लागि हजुरको नाम र फोन नम्बर पाउँ, तयार भएपछि खबर गर्छौं।';
         } else if (!request.awaitingConfirmation || changesCart) {
             // Not confirmed yet (or cart just changed): read back and ask instead.
             actions = actions.filter((a) => a.type !== 'request_confirmation');
@@ -215,8 +218,8 @@ export class VoiceService {
 
         if (menu.length === 0) {
             return {
-                reply: 'Sorry, there are no items available to order right now.',
-                replyNe: 'माफ गर्नुहोस्, अहिले अर्डर गर्न मिल्ने कुनै परिकार छैन।',
+                reply: "I'm so sorry, our kitchen isn't taking orders right now. Please ask our staff and they'll be glad to help.",
+                replyNe: 'माफ गर्नुहोला हजुर, अहिले किचनले अर्डर लिइरहेको छैन। कृपया हाम्रो स्टाफलाई सोध्नुहोस्।',
                 actions: [],
                 engine: 'rules',
                 awaitingConfirmation: false,

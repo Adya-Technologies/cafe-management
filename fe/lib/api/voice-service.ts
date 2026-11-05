@@ -48,6 +48,11 @@ const publicClient = axios.create({
 });
 
 export const voiceService = {
+    async getConfig(): Promise<{ hostName: string }> {
+        const response = await publicClient.get<{ hostName?: string }>('/voice/config', { timeout: 8000 });
+        return { hostName: response.data.hostName?.trim() || 'Aasha' };
+    },
+
     async assist(branchId: string, data: VoiceAssistRequest): Promise<VoiceAssistResponse> {
         const response = await publicClient.post<VoiceAssistResponse>(`/voice/${branchId}/assist`, data);
         return response.data;

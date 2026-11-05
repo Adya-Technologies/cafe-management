@@ -31,6 +31,18 @@ interface ChatMessage {
 
 const LANG_KEY = 'voice_assistant_lang';
 const MAX_SILENT_RETRIES = 1;
+/** If the host hasn't answered by then, say a short acknowledgment so there's no dead air. */
+const ACK_AFTER_MS = 1300;
+
+const ACKS: Record<SpeechLang, string[]> = {
+    en: ['One moment.', 'Of course, just a second.', 'Sure, let me see.', 'Certainly, one moment.'],
+    ne: ['हजुर, एकछिन।', 'पक्कै, एकछिन है।', 'हुन्छ, हेर्छु है।', 'हजुर, एकैछिन।'],
+};
+
+const pickOne = <T,>(list: T[]) => list[Math.floor(Math.random() * list.length)];
+
+const dayGreeting = (hour: number): [string, string] =>
+    hour < 11 ? ['Good morning', 'शुभ बिहानी'] : hour < 16 ? ['Good afternoon', 'नमस्ते'] : ['Good evening', 'शुभ साँझ'];
 
 const t = (lang: SpeechLang, en: string, ne: string) => (lang === 'ne' ? ne : en);
 
@@ -62,6 +74,7 @@ export default function VoiceAssistant({
     const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
     const [orderDetails, setOrderDetails] = useState<VoiceOrderDetails>({});
     const [handsFree, setHandsFree] = useState(true);
+    const [hostName, setHostName] = useState('Aasha');
 
     // Refs so async callbacks always see the latest values.
     const messagesRef = useRef(messages);
@@ -79,6 +92,21 @@ export default function VoiceAssistant({
     handsFreeRef.current = handsFree;
 
     useEffect(() => {
+        let cancelled = false;
+        voiceService
+            .getConfig()
+            .then((config) => {
+                if (!cancelled) setHostName(config.hostName);
+            })
+            .catch(() => {
+                /* keep the default name */
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
         scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
     }, [messages, interim, busy]);
 
@@ -91,9 +119,9 @@ export default function VoiceAssistant({
 
     /** Speak in Nepali when chosen and the device has a Devanagari voice, else English. */
     const say = useCallback(
-        (en: string, ne: string | undefined, onEnd?: () => void) => {
+        (en: string, ne: string | undefined, onEnd?: () => void, options?: { queue?: boolean }) => {
             const useNe = lang === 'ne' && Boolean(ne) && speech.canSpeakNepali;
-            speech.speak(useNe ? (ne as string) : en, useNe ? 'ne' : 'en', onEnd);
+            speech.speak(useNe ? (ne as string) : en, useNe ? 'ne' : 'en', onEnd, options);
         },
         [lang, speech]
     );
@@ -104,8 +132,8 @@ export default function VoiceAssistant({
         async (orderType: VoiceOrderType, customerName?: string, customerPhone?: string) => {
             const cart = useCartStore.getState();
             if (cart.items.length === 0) {
-                const en = 'Your cart is empty.';
-                const ne = 'तपाईंको कार्ट खाली छ।';
+                const en = "You haven't chosen anything yet. What can I get started for you?";
+                const ne = 'हजुरले अहिलेसम्म केही रोज्नुभएको छैन। के ल्याइदिऊँ?';
                 pushMessage({ role: 'assistant', text: en, textNe: ne });
                 say(en, ne);
                 return;
@@ -122,10 +150,24 @@ export default function VoiceAssistant({
                     items: cart.items.map((item) => ({ menuItemId: item.menuItem.id, quantity: item.quantity })),
                 });
                 setAwaitingConfirmation(false);
+                const first = customerName?.trim().split(' ')[0];
                 const token = order.tokenNumber ? ` Your token number is ${order.tokenNumber}.` : '';
-                const tokenNe = order.tokenNumber ? ` तपाईंको टोकन नम्बर ${order.tokenNumber} हो।` : '';
-                const en = `Your order has been placed.${token} Thank you!`;
-                const ne = `तपाईंको अर्डर भयो।${tokenNe} धन्यवाद!`;
+                const tokenNe = order.tokenNumber ? ` हजुरको टोकन नम्बर ${order.tokenNumber} हो।` : '';
+                const table = orderType === 'DINE_IN' ? cart.tableLabel : null;
+                const nextEn =
+                    orderType === 'TAKEAWAY'
+                        ? "We'll let you know the moment it's ready."
+                        : table
+                            ? `We'll bring it to table ${table} as soon as it's ready.`
+                            : "We'll have it out to you as soon as it's ready.";
+                const nextNe =
+                    orderType === 'TAKEAWAY'
+                        ? 'तयार हुनासाथ खबर गर्छौं।'
+                        : table
+                            ? `तयार हुनासाथ टेबल ${table} मा ल्याइदिन्छौं।`
+                            : 'तयार हुनासाथ ल्याइदिन्छौं।';
+                const en = `Thank you${first ? `, ${first}` : ''}! Your order is with the kitchen.${token} ${nextEn} Enjoy!`;
+                const ne = `धन्यवाद हजुर! अर्डर किचनमा पुग्यो।${tokenNe} ${nextNe} रमाइलो गर्नुहोस्!`;
                 pushMessage({ role: 'assistant', text: en, textNe: ne });
                 say(en, ne);
                 cart.clearCart();
@@ -138,8 +180,8 @@ export default function VoiceAssistant({
             } catch (error: unknown) {
                 const apiMessage = (error as { response?: { data?: { error?: string; message?: string } } })?.response?.data;
                 const reason = apiMessage?.error || apiMessage?.message;
-                const en = `Sorry, I couldn't place the order${reason ? `: ${reason}` : ''}. Please try again or use the checkout button.`;
-                const ne = 'माफ गर्नुहोस्, अर्डर गर्न सकिएन। फेरि प्रयास गर्नुहोस् वा चेकआउट बटन प्रयोग गर्नुहोस्।';
+                const en = `I'm so sorry, the order didn't go through${reason ? ` (${reason})` : ''}. Shall we try once more? You can also use the checkout button.`;
+                const ne = 'माफ गर्नुहोला हजुर, अर्डर पठाउन सकिएन। फेरि एकपटक प्रयास गरौं? चेकआउट बटन पनि प्रयोग गर्न सक्नुहुन्छ।';
                 pushMessage({ role: 'assistant', text: en, textNe: ne, error: true });
                 say(en, ne);
             } finally {
@@ -208,7 +250,7 @@ export default function VoiceAssistant({
     const startListeningRef = useRef<() => void>(() => {});
 
     const send = useCallback(
-        async (text: string) => {
+        async (text: string, options?: { spoken?: boolean }) => {
             const message = text.trim();
             if (!message || busy) return;
             setNotice(null);
@@ -219,6 +261,15 @@ export default function VoiceAssistant({
                 .map((m) => ({ role: m.role, text: m.text }));
             pushMessage({ role: 'user', text: message });
             setBusy(true);
+
+            // A real waiter nods straight away: if the answer takes a moment, say so out loud.
+            let ackDone: Promise<void> = Promise.resolve();
+            const ackTimer = options?.spoken
+                ? setTimeout(() => {
+                      const useNe = lang === 'ne' && speech.canSpeakNepali;
+                      ackDone = speech.speakAsync(pickOne(ACKS[useNe ? 'ne' : 'en']), useNe ? 'ne' : 'en');
+                  }, ACK_AFTER_MS)
+                : null;
 
             try {
                 const cart = useCartStore.getState();
@@ -232,6 +283,10 @@ export default function VoiceAssistant({
                     orderDetails: detailsRef.current,
                     deviceId: getOrCreateDeviceId(),
                 });
+
+                if (ackTimer) clearTimeout(ackTimer);
+                // Let a short "one moment" finish rather than cutting it off mid-word.
+                await Promise.race([ackDone, new Promise((r) => setTimeout(r, 2500))]);
 
                 const placeAction = await applyActions(response.actions);
                 setAwaitingConfirmation(response.awaitingConfirmation);
@@ -251,16 +306,18 @@ export default function VoiceAssistant({
                     }
                 });
             } catch (error: unknown) {
+                if (ackTimer) clearTimeout(ackTimer);
+                await Promise.race([ackDone, new Promise((r) => setTimeout(r, 2500))]);
                 const data = (error as { response?: { status?: number; data?: { reply?: string; replyNe?: string } } })?.response;
-                const en = data?.data?.reply || "Sorry, I'm having trouble right now. Please try again, or use the menu buttons.";
-                const ne = data?.data?.replyNe || 'माफ गर्नुहोस्, अहिले समस्या भयो। फेरि प्रयास गर्नुहोस्।';
+                const en = data?.data?.reply || "I'm sorry, I didn't quite get that through. Could you say it once more?";
+                const ne = data?.data?.replyNe || 'माफ गर्नुहोला हजुर, राम्ररी पुगेन। फेरि एकपटक भन्नुहुन्छ?';
                 pushMessage({ role: 'assistant', text: en, textNe: ne, error: true });
                 say(en, ne);
             } finally {
                 setBusy(false);
             }
         },
-        [applyActions, branchId, busy, lang, placeOrder, pushMessage, say, speech.isSecure, speech.sttSupported]
+        [applyActions, branchId, busy, lang, placeOrder, pushMessage, say, speech]
     );
 
     const startListening = useCallback(() => {
@@ -271,7 +328,7 @@ export default function VoiceAssistant({
             onInterim: setInterim,
             onFinal: (text) => {
                 setInterim('');
-                void send(text);
+                void send(text, { spoken: true });
             },
             onNoSpeech: () => {
                 setInterim('');
@@ -279,7 +336,7 @@ export default function VoiceAssistant({
                     silentRetriesRef.current += 1;
                     startListeningRef.current();
                 } else {
-                    setNotice(t(lang, "I didn't hear anything. Tap the mic and speak.", 'केही सुनिनँ। माइक थिचेर बोल्नुहोस्।'));
+                    setNotice(t(lang, "I'm here whenever you're ready; just tap the mic.", 'हजुर, तयार हुँदा माइक थिच्नुहोस्।'));
                 }
             },
             onError: (msg) => {
@@ -297,8 +354,10 @@ export default function VoiceAssistant({
         speech.unlock();
         setIsOpen(true);
         if (messagesRef.current.length === 0) {
-            const en = `Namaste! I'm the ${branchName} assistant. Tell me what you'd like to order, for example "two lattes and one momo".`;
-            const ne = `नमस्ते! म ${branchName} को सहायक हुँ। के अर्डर गर्ने भन्नुहोस्, जस्तै "दुईवटा लाटे र एउटा मोमो"।`;
+            const [hiEn, hiNe] = dayGreeting(new Date().getHours());
+            const table = useCartStore.getState().tableLabel;
+            const en = `${hiEn}, and welcome to ${branchName}! I'm ${hostName}${table ? `, and I'll be looking after table ${table}` : ''}. What can I get started for you?`;
+            const ne = `${hiNe} हजुर, ${branchName} मा स्वागत छ! म ${hostName}${table ? `, आज टेबल ${table} को सेवामा छु` : ''}। के ल्याइदिऊँ?`;
             pushMessage({ role: 'assistant', text: en, textNe: ne });
             say(en, ne, () => {
                 if (openRef.current && speech.sttSupported && speech.isSecure) startListeningRef.current();
@@ -344,7 +403,7 @@ export default function VoiceAssistant({
             void send('place the order');
             return;
         }
-        pushMessage({ role: 'user', text: t(lang, 'Yes, place the order', 'हो, अर्डर गर्नुहोस्') });
+        pushMessage({ role: 'user', text: t(lang, 'Yes, please send it', 'हो, पठाइदिनुस्') });
         void placeOrder(orderType, d.customerName, d.customerPhone);
     };
 
@@ -352,8 +411,8 @@ export default function VoiceAssistant({
         speech.stopListening();
         setAwaitingConfirmation(false);
         awaitingRef.current = false;
-        const en = 'Okay, not placed. What would you like to change?';
-        const ne = 'ठिक छ, अर्डर गरिएन। के परिवर्तन गर्ने?';
+        const en = "Of course, I'll hold it. What would you like to change?";
+        const ne = 'हुन्छ हजुर, अहिले पठाउँदिनँ। के परिवर्तन गर्ने?';
         pushMessage({ role: 'assistant', text: en, textNe: ne });
         say(en, ne);
     };
@@ -393,9 +452,28 @@ export default function VoiceAssistant({
                     >
                         {/* Header */}
                         <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-                            <div>
-                                <h2 className="text-base font-semibold text-black">{t(lang, 'Voice order', 'आवाजबाट अर्डर')}</h2>
-                                <p className="text-xs text-gray-500">{branchName}</p>
+                            <div className="flex items-center gap-3">
+                                <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-purple-700 text-base font-semibold text-white">
+                                    {hostName.charAt(0).toUpperCase()}
+                                    <span
+                                        className={cn(
+                                            'absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white',
+                                            speech.isListening ? 'bg-red-500' : busy || placing ? 'bg-amber-400' : 'bg-green-500'
+                                        )}
+                                    />
+                                </div>
+                                <div>
+                                    <h2 className="text-base font-semibold text-black">{hostName}</h2>
+                                    <p className="text-xs text-gray-500">
+                                        {speech.isListening
+                                            ? t(lang, 'Listening…', 'सुन्दैछु…')
+                                            : busy
+                                                ? t(lang, 'Noting that down…', 'लेख्दैछु…')
+                                                : speech.isSpeaking
+                                                    ? t(lang, 'Speaking…', 'बोल्दैछु…')
+                                                    : `${t(lang, 'AI host', 'AI होस्ट')} · ${branchName}`}
+                                    </p>
+                                </div>
                             </div>
                             <div className="flex items-center gap-2">
                                 <div className="flex rounded-full bg-gray-100 p-0.5 text-xs font-medium">
@@ -475,7 +553,7 @@ export default function VoiceAssistant({
                                     disabled={busy}
                                     className="flex-1 rounded-full bg-purple-600 py-2.5 text-sm font-semibold text-white hover:bg-purple-700 disabled:opacity-50"
                                 >
-                                    {t(lang, 'Yes, place order', 'हो, अर्डर गर्नुहोस्')}
+                                    {t(lang, 'Yes, send to kitchen', 'हो, किचनमा पठाउनुहोस्')}
                                 </button>
                                 <button
                                     type="button"
